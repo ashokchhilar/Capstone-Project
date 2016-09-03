@@ -1,0 +1,211 @@
+---
+title: "Capstone-MileStoneReport"
+author: "Ashok"
+date: "June 2, 2016"
+output: html_document
+---
+
+The goal of this project is just to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm. Please submit a report on R Pubs (http://rpubs.com/) that explains your exploratory analysis and your goals for the eventual app and algorithm. This document should be concise and explain only the major features of the data you have identified and briefly summarize your plans for creating the prediction algorithm and Shiny app in a way that would be understandable to a non-data scientist manager. You should make use of tables and plots to illustrate important summaries of the data set. The motivation for this project is to: 
+
+1. Demonstrate that you've downloaded the data and have successfully loaded it in.
+2. Create a basic report of summary statistics about the data sets.
+3. Report any interesting findings that you amassed so far.
+4. Get feedback on your plans for creating a prediction algorithm and Shiny app.
+
+Setup working directory and other settings
+```{r echo=FALSE}
+rm(list=ls());
+options(scipen=999);
+memory.limit(1000000);
+
+setwd("C:/Users/aschhila/OneDrive/Documents/DataScience/Capstone Project")
+```
+
+
+```{r}
+#List the files 
+require(tm)
+require(RWeka)
+list.files("final/en_US/")
+
+news <- "final/en_US/en_US.news.txt";
+blogs <- "final/en_US/en_US.blogs.txt";
+twitter <- "final/en_US/en_US.twitter.txt";
+```
+
+
+```{r echo=FALSE}
+#file sizes
+filesize_news <- file.size(news) / 1024^2
+filesize_blogs <- file.size(blogs) / 1024^2
+filesize_twitter <- file.size(twitter) / 1024^2
+```
+
+### File Sizes
+1.  News :    `r filesize_news` MB 
+2.  Blogs :   `r filesize_blogs` MB  
+3.  Twitter : `r filesize_twitter` MB  
+
+##Read all data
+```{r}
+#Read Files
+news_data <- readLines(news)
+blogs_data <- readLines(blogs)
+twitter_data <-readLines(twitter)
+```
+
+
+##Brief summary 
+```{r}
+
+```
+
+
+
+```{r}
+twitter_words <- sum(sapply(gregexpr("[[:alpha:]]+", twitter_data), function(x) sum(x > 0)))
+news_words <- sum(sapply(gregexpr("[[:alpha:]]+", news_data), function(x) sum(x > 0)))
+blogs_words <- sum(sapply(gregexpr("[[:alpha:]]+", blogs_data), function(x) sum(x > 0)))
+
+summary <- data.frame(Name = character(), WordCount=numeric(), Lines=numeric())
+summary <- rbind(summary, data.frame(Name = as.character("Twitter Data"), WordCount = twitter_words, Lines = length(twitter_data)))
+summary <- rbind(summary, data.frame(Name = as.character("Blogs Data"), WordCount=blogs_words, Lines=length(blogs_data)))
+summary <- rbind(summary, data.frame(Name = as.character("News Data"), WordCount=news_words, Lines=length(news_data)))
+
+summary$AverageWordsPerLine = summary$WordCount/summary$Lines
+summary
+
+```
+
+
+
+##Deeper analysis using sampled data
+###Sample a 1000 lines from each of the files
+```{r}
+sample_data<-c(news_data[sample(length(news_data),10000)], blogs_data[sample(length(blogs_data),10000)], twitter_data[sample(length(twitter_data),10000)])
+
+#remove non-ascii characters
+
+```
+
+Write the sampled data to a file
+```{r}
+write.table(sample_data,"sampled/English.txt",row.names=FALSE,col.names=FALSE,quote=FALSE,append=FALSE)
+```
+
+##TM Analysis
+Load the sampled data in a Corpus for using advanced text mining algorithms
+```{r warning=FALSE}
+library(tm)
+cname <- file.path("C:","Users","aschhila","OneDrive", "Documents","DataScience","Capstone Project", "sampled")
+dir(cname)
+
+#create corpus
+docs <- Corpus(DirSource(cname))   
+summary(docs)
+```
+
+
+Note: the following analysis has been done using pieces of code from https://rstudio-pubs-static.s3.amazonaws.com/31867_8236987cf0a8444e962ccd2aec46d9c3.html which is available in public domain on the internet as a reference text.
+
+```{r warning=FALSE}
+#remove punctuations
+docs <- tm_map(docs, removePunctuation)
+#remove numbers
+docs <- tm_map(docs, removeNumbers)  
+#convert to lowercase
+docs <- tm_map(docs, tolower) 
+#remove stopworlds
+docs <- tm_map(docs, removeWords, stopwords("english")) 
+docs <- tm_map(docs, stripWhitespace) 
+docs <- tm_map(docs, PlainTextDocument)
+```
+
+
+##Plot Word Frequency
+Here we generate bar charts for high freqency words. Specifially the bar chart represents words that have appeared 100 or more times in the sampe set.
+```{r warning=FALSE}
+tdm <- TermDocumentMatrix(docs)
+dtm <- DocumentTermMatrix(docs)
+
+save ("tdm", file ="tdm.Rdata")
+save ("dtm", file ="dtm.Rdata")
+
+freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)   
+head(freq, 14) 
+
+wf <- data.frame(word=names(freq), freq=freq)   
+head(wf)
+library(ggplot2)   
+p <- ggplot(subset(wf, freq>100), aes(word, freq))    
+p <- p + geom_bar(stat="identity")   
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))   
+p 
+
+```
+
+
+#Further Plan
+I plan to explore more using the text mining infrastrucutre present in R and try to build n-grams for prediction. I will use the sampled data created in this report for trying out more n-gram and word prediction algorithms and then test with different samples to get an idea on prediction accuracy etc. 
+When the prediction accuracy is good enough, i will use those prototype scripts to generate the final shiny app.
+
+
+
+```{r}
+require(RWeka)
+# Functions to build n grams
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+FourgramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 4, max = 4))
+
+# Create N grams
+bigram <- TermDocumentMatrix(docs, control = list(tokenize = BigramTokenizer))
+save ("bigram",file="bigram.Rdata")
+trigram <- TermDocumentMatrix(docs, control = list(tokenize = TrigramTokenizer))
+save ("trigram",file="trigram.Rdata")
+fourgram <- TermDocumentMatrix(docs, control = list(tokenize = FourgramTokenizer))
+save ("fourgram",file="fourgram.Rdata")
+
+
+sparsetdm <- removeSparseTerms(tdm, sparse=0.99)
+sparsedtm <- removeSparseTerms(dtm, sparse=0.99)
+sparsebigram <- removeSparseTerms(bigram, sparse=0.998)
+sparsetrigram <- removeSparseTerms(trigram, sparse=0.9986)
+sparsefourgram <- removeSparseTerms(fourgram, sparse=0.9986)
+
+# Save the sparse files and remove the presparse files
+save ("sparsetdm", file ="sparsetdm.Rdata")
+save ("sparsedtm", file ="sparsetdtm.Rdata")
+save ("sparsebigram", file ="sparsebigram.Rdata")
+save ("sparsetrigram", file ="sparsetrigram.Rdata")
+save ("sparsefourgram", file ="sparsefourgram.Rdata")
+
+sparsetdm <- removeSparseTerms(tdm, sparse=0.99)
+sparsedtm <- removeSparseTerms(dtm, sparse=0.99)
+sparsebigram <- removeSparseTerms(bigram, sparse=0.998)
+sparsetrigram <- removeSparseTerms(trigram, sparse=0.9986)
+sparsefourgram <- removeSparseTerms(fourgram, sparse=0.9986)
+
+# Save the sparse files and remove the presparse files
+save ("sparsetdm", file ="sparsetdm.Rdata")
+save ("sparsedtm", file ="sparsetdtm.Rdata")
+save ("sparsebigram", file ="sparsebigram.Rdata")
+save ("sparsetrigram", file ="sparsetrigram.Rdata")
+save ("sparsefourgram", file ="sparsefourgram.Rdata")
+
+
+# Convert to dataframe and make barchart and words cloud
+df <-dfit(sparsetdm)
+barit(df)
+wordit(df)
+
+df <-dfit(sparsebigram)
+barit(df)
+wordit(df)
+
+df <-dfit(sparsetrigram)
+barit(df)
+wordit(df)
+
+```
+
